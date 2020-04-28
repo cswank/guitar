@@ -3,104 +3,77 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/signal"
 
-	"github.com/gen2brain/malgo"
+	"github.com/alecthomas/kingpin"
+	"github.com/gordonklaus/portaudio"
+)
+
+var (
+	tab = kingpin.Arg("input", "input file").Required().String()
+	typ = kingpin.Flag("type", "input file type").Enum("tab")
 )
 
 func main() {
-	ctx, err := malgo.InitContext(nil, malgo.ContextConfig{}, func(message string) {
-		fmt.Printf("LOG <%v>\n", message)
-	})
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	defer func() {
-		_ = ctx.Uninit()
-		ctx.Free()
-	}()
+	kingpin.Parse()
 
-	deviceConfig := malgo.DefaultDeviceConfig()
-	deviceConfig.DeviceType = malgo.Duplex
-	deviceConfig.Capture.Format = malgo.FormatS16
-	deviceConfig.Capture.Channels = 1
-	deviceConfig.Playback.Format = malgo.FormatS16
-	deviceConfig.Playback.Channels = 1
-	deviceConfig.SampleRate = 8000
-	deviceConfig.Alsa.NoMMap = 1
+	listen()
+}
 
-	var playbackSampleCount uint32
-	var capturedSampleCount uint32
-	pCapturedSamples := make([]byte, 0)
+func listen() {
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, os.Kill)
 
-	sizeInBytes := uint32(malgo.SampleSizeInBytes(deviceConfig.Capture.Format))
-	onRecvFrames := func(pSample2, pSample []byte, framecount uint32) {
+	portaudio.Initialize()
+	defer portaudio.Terminate()
+	in := make([]float32, 1024)
+	stream, err := portaudio.OpenDefaultStream(1, 0, 44100, len(in), in)
+	chk(err)
+	defer stream.Close()
 
-		sampleCount := framecount * deviceConfig.Capture.Channels * sizeInBytes
-
-		newCapturedSampleCount := capturedSampleCount + sampleCount
-
-		pCapturedSamples = append(pCapturedSamples, pSample...)
-
-		capturedSampleCount = newCapturedSampleCount
-
-	}
-
-	fmt.Println("Recording...")
-	captureCallbacks := malgo.DeviceCallbacks{
-		Data: onRecvFrames,
-	}
-	device, err := malgo.InitDevice(ctx.Context, deviceConfig, captureCallbacks)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	err = device.Start()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	fmt.Println("Press Enter to stop recording...")
-	fmt.Scanln()
-
-	device.Uninit()
-
-	onSendFrames := func(pSample, nil []byte, framecount uint32) {
-		samplesToRead := framecount * deviceConfig.Playback.Channels * sizeInBytes
-		if samplesToRead > capturedSampleCount-playbackSampleCount {
-			samplesToRead = capturedSampleCount - playbackSampleCount
+	chk(stream.Start())
+	var stop bool
+	var prev float32
+	var i int
+	for !stop {
+		i++
+		stream.Read()
+		m := max(in)
+		if (m - prev) > 0.1 {
+			fmt.Println(m)
 		}
-
-		copy(pSample, pCapturedSamples[playbackSampleCount:playbackSampleCount+samplesToRead])
-
-		playbackSampleCount += samplesToRead
-
-		if playbackSampleCount == uint32(len(pCapturedSamples)) {
-			playbackSampleCount = 0
+		prev = m
+		select {
+		case <-sig:
+			fmt.Println("break")
+			stop = true
+		default:
 		}
 	}
 
-	fmt.Println("Playing...")
-	playbackCallbacks := malgo.DeviceCallbacks{
-		Data: onSendFrames,
-	}
+	chk(stream.Stop())
+	fmt.Println(i)
+	// out := make([]float64, len(buf))
+	// for i, val := range buf {
+	// 	out[i] = float64(val)
+	// }
 
-	device, err = malgo.InitDevice(ctx.Context, deviceConfig, playbackCallbacks)
+	// t := fft.FFTReal(out)
+	// fmt.Println(t)
+}
+
+func max(in []float32) float32 {
+	var out float32
+	for _, f := range in {
+		if f > out {
+			out = f
+		}
+	}
+	return out
+}
+
+func chk(err error) {
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		panic(err)
 	}
-
-	err = device.Start()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	fmt.Println("Press Enter to quit...")
-	fmt.Scanln()
-
-	device.Uninit()
 }
