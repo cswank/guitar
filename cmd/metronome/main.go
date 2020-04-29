@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -38,7 +39,9 @@ func main() {
 
 	metronome.High = d
 
-	metronome.Start(120)
+	metronome.Start(120, func() {
+		fmt.Println("tick")
+	})
 	time.Sleep(10 * time.Second)
 	metronome.Stop()
 }

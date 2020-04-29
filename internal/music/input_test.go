@@ -1,4 +1,4 @@
-package input_test
+package music_test
 
 import (
 	"bytes"

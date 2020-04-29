@@ -1,79 +1,47 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"os"
-	"os/signal"
+	"time"
 
+	rice "github.com/GeertJohan/go.rice"
 	"github.com/alecthomas/kingpin"
-	"github.com/gordonklaus/portaudio"
+	"github.com/cswank/guitar/internal/analysis"
+	"github.com/cswank/guitar/internal/metronome"
+	"github.com/cswank/guitar/internal/music"
 )
 
 var (
-	tab = kingpin.Arg("input", "input file").Required().String()
+	in  = kingpin.Arg("input", "input file").Required().String()
 	typ = kingpin.Flag("type", "input file type").Enum("tab")
+	bpm = kingpin.Flag("bpm", "beats per minute").Default("60").Int()
 )
 
 func main() {
 	kingpin.Parse()
 
-	listen()
-}
-
-func listen() {
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, os.Kill)
-
-	portaudio.Initialize()
-	defer portaudio.Terminate()
-	in := make([]float32, 1024)
-	stream, err := portaudio.OpenDefaultStream(1, 0, 44100, len(in), in)
-	chk(err)
-	defer stream.Close()
-
-	chk(stream.Start())
-	var stop bool
-	var prev float32
-	var i int
-	for !stop {
-		i++
-		stream.Read()
-		m := max(in)
-		if (m - prev) > 0.1 {
-			fmt.Println(m)
-		}
-		prev = m
-		select {
-		case <-sig:
-			fmt.Println("break")
-			stop = true
-		default:
-		}
-	}
-
-	chk(stream.Stop())
-	fmt.Println(i)
-	// out := make([]float64, len(buf))
-	// for i, val := range buf {
-	// 	out[i] = float64(val)
-	// }
-
-	// t := fft.FFTReal(out)
-	// fmt.Println(t)
-}
-
-func max(in []float32) float32 {
-	var out float32
-	for _, f := range in {
-		if f > out {
-			out = f
-		}
-	}
-	return out
-}
-
-func chk(err error) {
+	f, err := os.Open(*in)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
+
+	defer f.Close()
+
+	m, err := music.New(f, *typ, *bpm)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	box := rice.MustFindBox("sounds")
+
+	if err := metronome.Init(box); err != nil {
+		log.Fatal(err)
+	}
+
+	analysis.Start(time.Duration(*bpm), m)
+
+	time.Sleep(10 * time.Second)
+
+	analysis.Stop()
 }

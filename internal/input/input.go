@@ -1,53 +1,77 @@
 package input
 
 import (
-	"fmt"
-	"io"
+	"sync"
 	"time"
+
+	"github.com/gordonklaus/portaudio"
 )
 
-type (
-	Scorer func(start, ts time.Time, freq, bpm int) Score
-
-	Score struct {
-		Diff time.Duration
-	}
-
-	Time struct {
-		Beat  int
-		Beats int
-	}
-
-	Input struct {
-		Time        Time
-		Measures    int
-		timePerLoop time.Duration
-		currentNote int
-		notes       []note
-	}
-
-	note struct {
-		// expected time the note should be hit
-		t    time.Duration
-		freq int
-	}
+var (
+	stream *portaudio.Stream
+	quit   chan struct{}
+	sig    struct{}
+	wg     sync.WaitGroup
 )
 
-func (i *Input) Score(start, ts time.Time, freq int) Score {
-	if i.currentNote >= len(i.notes) {
-		return Score{Diff: time.Minute}
-	}
-	n := i.notes[i.currentNote]
-	diff := ts.Sub(start) % i.timePerLoop
-	i.currentNote++
-	return Score{Diff: diff - n.t}
+func init() {
+	quit = make(chan struct{})
 }
 
-func New(r io.Reader, typ string, bpm int) (*Input, error) {
-	switch typ {
-	case "tab":
-		return newTab(r, bpm)
-	default:
-		return nil, fmt.Errorf("unknown input type: %s", typ)
+func Start(cb func(ts time.Time)) error {
+	wg.Add(1)
+
+	portaudio.Initialize()
+
+	in := make([]float32, 1024)
+	var err error
+	stream, err = portaudio.OpenDefaultStream(1, 0, 44100, len(in), in)
+	if err != nil {
+		return err
 	}
+
+	if err := stream.Start(); err != nil {
+		return err
+	}
+
+	var stop bool
+	var prev float32
+	prevTime := time.Now()
+	go func() {
+		for !stop {
+			select {
+			case <-quit:
+				stop = true
+			default:
+				stream.Read()
+				m := max(in)
+				now := time.Now()
+				if (m-prev) > 0.1 && now.Sub(prevTime) > time.Millisecond*10 {
+					prevTime = now
+					cb(prevTime)
+				}
+				prev = m
+			}
+		}
+		wg.Done()
+	}()
+
+	return nil
+}
+
+func Stop() {
+	quit <- sig
+	wg.Wait()
+	portaudio.Terminate()
+	stream.Close()
+}
+
+func max(in []float32) float32 {
+	var out float32
+	for _, f := range in {
+		if f > out {
+			out = f
+		}
+	}
+	return out
 }

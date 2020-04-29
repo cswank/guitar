@@ -1,4 +1,4 @@
-package input
+package music
 
 import (
 	"bufio"
