@@ -11,7 +11,7 @@ require (
 	github.com/cswank/gocui v0.6.0
 	github.com/faiface/beep v1.0.2
 	github.com/gordonklaus/portaudio v0.0.0-20180817120803-00e7307ccd93
-	github.com/hajimehoshi/oto v0.3.1
+	github.com/hajimehoshi/oto v0.6.1
+	github.com/mattetti/audio v0.0.0-20190404201502-c6aebeb78429
 	github.com/stretchr/testify v1.5.1
-	golang.org/x/image v0.0.0-20190220214146-31aff87c08e9 // indirect
 )

@@ -3,7 +3,6 @@ package metronome
 import (
 	"bytes"
 	"io"
-	"log"
 	"time"
 
 	rice "github.com/GeertJohan/go.rice"
@@ -11,61 +10,73 @@ import (
 )
 
 var (
-	quit   chan struct{}
-	player *oto.Player
-	sig    struct{}
-	low    []byte
-	high   []byte
+	sig struct{}
 )
 
-func Init(box *rice.Box) error {
+type Metronome struct {
+	quit   chan struct{}
+	player *oto.Player
+	low    []byte
+	high   []byte
+}
+
+func New(box *rice.Box) (*Metronome, error) {
 	var err error
-	low, err = box.Bytes("low")
+	low, err := box.Bytes("low")
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	high, err = box.Bytes("low")
-	return err
-}
-
-func init() {
-	quit = make(chan struct{})
-	ctx, err := oto.NewContext(44100, 2, 2, 2048)
+	high, err := box.Bytes("high")
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	player = ctx.NewPlayer()
+
+	ctx, err := oto.NewContext(44100, 2, 2, 128)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Metronome{
+		player: ctx.NewPlayer(),
+		quit:   make(chan struct{}),
+		low:    low,
+		high:   high,
+	}, nil
 }
 
-func Start(bpm time.Duration, cb func(ts time.Time)) {
+func (m Metronome) Start(bpm time.Duration, cb func(ts time.Time)) {
 	d := time.Minute / bpm
 	tk := time.NewTicker(d)
-	l := bytes.NewReader(low)
-	h := bytes.NewReader(high)
+	l := bytes.NewReader(m.low)
+	h := bytes.NewReader(m.high)
 	var i int
 	go func() {
 		for {
 			select {
 			case <-tk.C:
-				if i%4 == 0 {
-					cb(time.Now())
-					io.Copy(player, h)
+				switch {
+				case i < 4:
+					io.Copy(m.player, h)
 					h.Seek(0, 0)
-				} else {
+				case i%4 == 0:
 					cb(time.Now())
-					io.Copy(player, l)
+					io.Copy(m.player, h)
+					h.Seek(0, 0)
+				default:
+					cb(time.Now())
+					io.Copy(m.player, l)
 					l.Seek(0, 0)
 				}
 				i++
-			case <-quit:
+			case <-m.quit:
 				return
 			}
 		}
 	}()
 }
 
-func Stop() {
-	quit <- sig
-	player.Close()
+func (m Metronome) Stop() {
+	m.quit <- sig
+	m.player.Close()
 }

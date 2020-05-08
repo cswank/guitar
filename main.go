@@ -8,6 +8,7 @@ import (
 	rice "github.com/GeertJohan/go.rice"
 	"github.com/alecthomas/kingpin"
 	"github.com/cswank/guitar/internal/analysis"
+	"github.com/cswank/guitar/internal/input"
 	"github.com/cswank/guitar/internal/metronome"
 	"github.com/cswank/guitar/internal/music"
 )
@@ -34,14 +35,17 @@ func main() {
 	}
 
 	box := rice.MustFindBox("sounds")
-
-	if err := metronome.Init(box); err != nil {
+	met, err := metronome.New(box)
+	if err != nil {
 		log.Fatal(err)
 	}
 
-	analysis.Start(time.Duration(*bpm), m)
+	in := input.New()
+	a := analysis.New(met, in)
+
+	a.Start(time.Duration(*bpm), m)
 
 	time.Sleep(10 * time.Second)
 
-	analysis.Stop()
+	a.Stop()
 }

@@ -5,66 +5,97 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cswank/guitar/internal/input"
-	"github.com/cswank/guitar/internal/metronome"
 	"github.com/cswank/guitar/internal/music"
 )
 
 var (
-	ticks []time.Time
-	notes []time.Time
-	wg    sync.WaitGroup
-	quit  chan struct{}
-	sig   struct{}
+	sig struct{}
 )
 
-func init() {
-	quit = make(chan struct{})
+type (
+	ticker interface {
+		Start(time.Duration, func(time.Time))
+		Stop()
+	}
+
+	listener interface {
+		Start(func(time.Time)) error
+		Stop()
+	}
+
+	Analysis struct {
+		ticks     []time.Time
+		notes     []time.Time
+		wg        sync.WaitGroup
+		quit      chan struct{}
+		quit2     chan struct{}
+		metronome ticker
+		input     listener
+	}
+)
+
+func New(met ticker, in listener) *Analysis {
+	return &Analysis{
+		quit:      make(chan struct{}),
+		quit2:     make(chan struct{}),
+		metronome: met,
+		input:     in,
+	}
 }
 
-func Start(bpm time.Duration, in *music.Input) {
-	ticks = []time.Time{}
-	notes = []time.Time{}
+func (a *Analysis) Start(bpm time.Duration, in *music.Input) {
+	a.ticks = []time.Time{}
+	a.notes = []time.Time{}
 
 	newNote := make(chan time.Time)
 	newTick := make(chan time.Time)
 
-	input.Start(func(ts time.Time) {
+	a.input.Start(func(ts time.Time) {
 		newNote <- ts
 	})
 
-	metronome.Start(bpm, func(ts time.Time) {
+	a.metronome.Start(bpm, func(ts time.Time) {
 		newTick <- ts
 	})
 
-	wg.Add(1)
+	a.wg.Add(2)
 	go func() {
 		for {
 			select {
 			case ts := <-newNote:
-				notes = append(notes, ts)
-			case ts := <-newTick:
-				ticks = append(ticks, ts)
-			case <-quit:
-				wg.Done()
+				a.notes = append(a.notes, ts)
+			case <-a.quit:
+				a.wg.Done()
 				return
 			}
 		}
 	}()
 
+	go func() {
+		for {
+			select {
+			case ts := <-newTick:
+				a.ticks = append(a.ticks, ts)
+			case <-a.quit2:
+				a.wg.Done()
+				return
+			}
+		}
+	}()
 }
 
-func Stop() {
-	input.Stop()
-	metronome.Stop()
+func (a *Analysis) Stop() {
+	a.input.Stop()
+	a.metronome.Stop()
 
-	quit <- sig
-	wg.Wait()
-	for i, t := range ticks {
+	a.quit <- sig
+	a.quit2 <- sig
+	a.wg.Wait()
+	for i, t := range a.ticks {
 		var n time.Time
-		if i < len(notes) {
-			n = notes[i]
+		if i < len(a.notes) {
+			n = a.notes[i]
 		}
-		fmt.Printf("tick: %s, note: %s\n", t, n)
+		fmt.Printf("diff: %s, tick: %s, note: %s\n", t.Sub(n), t, n)
 	}
 }
