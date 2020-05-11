@@ -1,6 +1,7 @@
 package analysis_test
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 	"testing"
@@ -14,30 +15,51 @@ import (
 func TestAnalysis(t *testing.T) {
 	testCases := []struct {
 		loops  int
-		notes  []time.Time
-		input  music.Input
+		bpm    int
+		notes  []time.Duration
+		tab    string
 		scores []int
 	}{
 		{
-			notes: []time.Time{},
+			bpm:   60,
+			notes: []time.Duration{0, time.Second, 2 * time.Second, 3 * time.Second, 4 * time.Second, 5 * time.Second, 6 * time.Second, 7 * time.Second, 8 * time.Second},
 			loops: 1,
-			input: music.Input{
-				Time:     music.Time{Beat: 4, Beats: 4},
-				Measures: 2,
-			},
+			tab: `
+|--------------------------------|--------3-------3---------------|
+|--------------------------------|6-----------------------6-------|
+|------------------------5-------|--------------------------------|
+|--------3-------5---------------|--------------------------------|
+|3-------------------------------|--------------------------------|
+|--------------------------------|--------------------------------|`,
 			scores: []int{100},
 		},
 	}
 
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("%02d", i), func(t *testing.T) {
-			a := analysis.New(&metronome{loops: tc.loops, in: tc.input}, &input{notes: tc.notes})
+			start := time.Now()
+			notes := make([]time.Time, len(tc.notes))
+			for i, dur := range tc.notes {
+				notes[i] = start.Add(dur)
+			}
+			in, err := music.New(bytes.NewBufferString(tc.tab), "tab", tc.bpm)
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			met := &metronome{
+				loops: tc.loops,
+				in:    *in,
+				start: notes[0],
+				bpm:   time.Duration(tc.bpm),
+			}
+			a := analysis.New(met, &input{notes: notes})
 			var scores []int
 			var wg sync.WaitGroup
 			wg.Add(1)
 
 			go func() {
-				a.Start(60, &tc.input, func(score int) {
+				a.Start(60, in, func(score int) {
 					scores = append(scores, score)
 					if len(scores) == tc.loops {
 						wg.Done()
@@ -55,12 +77,13 @@ func TestAnalysis(t *testing.T) {
 type metronome struct {
 	loops int
 	in    music.Input
+	start time.Time
+	bpm   time.Duration
 }
 
 func (m *metronome) Start(ts time.Duration, f func(time.Time)) {
 	for i := 0; i <= (m.loops * m.in.Time.Beats * m.in.Measures); i++ {
-		t := time.Now()
-		f(t)
+		f(m.start.Add(time.Duration(i) * time.Minute / m.bpm))
 	}
 }
 

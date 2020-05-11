@@ -1,7 +1,6 @@
 package analysis
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -46,7 +45,7 @@ func (a *Analysis) Start(bpm time.Duration, in *music.Input, f func(int)) {
 
 	newNote := make(chan time.Time)
 	newTick := make(chan time.Time)
-	analyze := make(chan struct{})
+	analyze := make(chan time.Time)
 
 	a.wg.Add(3)
 	go func() {
@@ -63,14 +62,18 @@ func (a *Analysis) Start(bpm time.Duration, in *music.Input, f func(int)) {
 
 	end := in.Time.Beats * in.Measures
 	var i int
+	var start time.Time
 	go func() {
 		for {
 			select {
-			case <-newTick:
+			case tick := <-newTick:
+				if i == 0 {
+					start = tick
+				}
+
 				i++
-				fmt.Println("tick", i, end)
 				if i > 1 && i%end == 1 {
-					analyze <- sig
+					analyze <- start
 				}
 			case <-a.quit2:
 				a.wg.Done()
@@ -80,10 +83,16 @@ func (a *Analysis) Start(bpm time.Duration, in *music.Input, f func(int)) {
 	}()
 
 	go func() {
+		var n int
 		for {
 			select {
-			case <-analyze:
-				f(100)
+			case start := <-analyze:
+				var score time.Duration
+				for _, note := range notes[n:] {
+					score += in.Score(start, note, 0)
+				}
+				n += len(notes[n:])
+				f(100 - int(score*time.Millisecond))
 			case <-a.quit3:
 				a.wg.Done()
 				return
