@@ -2,15 +2,18 @@ package metronome
 
 import (
 	"bytes"
+	"embed"
 	"io"
 	"time"
 
-	rice "github.com/GeertJohan/go.rice"
 	"github.com/hajimehoshi/oto"
 )
 
 var (
 	sig struct{}
+
+	//go:embed sounds/*
+	sounds embed.FS
 )
 
 type Metronome struct {
@@ -20,14 +23,14 @@ type Metronome struct {
 	high   []byte
 }
 
-func New(box *rice.Box) (*Metronome, error) {
+func New() (*Metronome, error) {
 	var err error
-	low, err := box.Bytes("low")
+	low, err := sounds.ReadFile("low")
 	if err != nil {
 		return nil, err
 	}
 
-	high, err := box.Bytes("high")
+	high, err := sounds.ReadFile("high")
 	if err != nil {
 		return nil, err
 	}

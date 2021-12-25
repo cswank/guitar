@@ -5,7 +5,6 @@ import (
 	"os"
 	"time"
 
-	rice "github.com/GeertJohan/go.rice"
 	"github.com/alecthomas/kingpin"
 	"github.com/cswank/guitar/internal/analysis"
 	"github.com/cswank/guitar/internal/input"
@@ -34,8 +33,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	box := rice.MustFindBox("sounds")
-	met, err := metronome.New(box)
+	met, err := metronome.New()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -43,7 +41,7 @@ func main() {
 	in := input.New()
 	a := analysis.New(met, in)
 
-	a.Start(time.Duration(*bpm), m)
+	a.Start(time.Duration(*bpm), m, func(i int) {})
 
 	time.Sleep(10 * time.Second)
 

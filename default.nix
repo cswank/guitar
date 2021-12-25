@@ -8,5 +8,6 @@ stdenv.mkDerivation rec {
   buildInputs = [
     pkgconfig
     portaudio
+    alsaLib
   ];
 }
