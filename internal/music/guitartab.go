@@ -74,7 +74,7 @@ func newTab(r io.Reader, bpm int) (*Input, error) {
 	return &Input{
 		Time:        Time{Beat: beat, Beats: 4},
 		Measures:    len(parts),
-		timePerLoop: timePerMeasure * time.Duration(len(parts)),
+		TimePerLoop: timePerMeasure * time.Duration(len(parts)),
 		notes:       notes,
 	}, nil
 }

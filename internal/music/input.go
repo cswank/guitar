@@ -21,7 +21,7 @@ type (
 	Input struct {
 		Time        Time
 		Measures    int
-		timePerLoop time.Duration
+		TimePerLoop time.Duration
 		notes       []note
 	}
 
@@ -38,7 +38,7 @@ func (i *Input) Score(start, ts time.Time, freq int) time.Duration {
 
 	var dur time.Duration
 	if t > 0 {
-		dur = i.timePerLoop % t
+		dur = i.TimePerLoop % t
 	}
 
 	for _, note := range i.notes {

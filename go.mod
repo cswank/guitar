@@ -14,4 +14,5 @@ require (
 	github.com/hajimehoshi/oto v0.6.1
 	github.com/mattetti/audio v0.0.0-20190404201502-c6aebeb78429
 	github.com/stretchr/testify v1.5.1
+	golang.org/x/tools/gopls v0.4.0 // indirect
 )

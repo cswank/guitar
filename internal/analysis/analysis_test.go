@@ -16,14 +16,20 @@ func TestAnalysis(t *testing.T) {
 	testCases := []struct {
 		loops  int
 		bpm    int
-		notes  []time.Duration
+		notes  func() []time.Duration
 		tab    string
-		scores []int
+		scores []time.Duration
 	}{
 		{
-			bpm:   60,
-			notes: []time.Duration{0, time.Second, 2 * time.Second, 3 * time.Second, 4 * time.Second, 5 * time.Second, 6 * time.Second, 7 * time.Second, 8 * time.Second},
-			loops: 1,
+			bpm: 60,
+			notes: func() []time.Duration {
+				out := make([]time.Duration, 17)
+				for i := range out {
+					out[i] = time.Duration(i) * time.Second
+				}
+				return out
+			},
+			loops: 2,
 			tab: `
 |--------------------------------|--------3-------3---------------|
 |--------------------------------|6-----------------------6-------|
@@ -31,35 +37,60 @@ func TestAnalysis(t *testing.T) {
 |--------3-------5---------------|--------------------------------|
 |3-------------------------------|--------------------------------|
 |--------------------------------|--------------------------------|`,
-			scores: []int{100},
+			scores: []time.Duration{0, 0},
+		},
+		{
+			bpm: 60,
+			notes: func() []time.Duration {
+				out := make([]time.Duration, 17)
+				for i := range out {
+					d := time.Duration(i) * time.Second
+					if i > 7 {
+						d += time.Millisecond
+					}
+					out[i] = d
+				}
+				return out
+			},
+			loops: 2,
+			tab: `
+|--------------------------------|--------3-------3---------------|
+|--------------------------------|6-----------------------6-------|
+|------------------------5-------|--------------------------------|
+|--------3-------5---------------|--------------------------------|
+|3-------------------------------|--------------------------------|
+|--------------------------------|--------------------------------|`,
+			scores: []time.Duration{0, 8},
 		},
 	}
 
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("%02d", i), func(t *testing.T) {
 			start := time.Now()
-			notes := make([]time.Time, len(tc.notes))
-			for i, dur := range tc.notes {
+			in := tc.notes()
+			notes := make([]time.Time, len(in))
+			for i, dur := range in {
 				notes[i] = start.Add(dur)
 			}
-			in, err := music.New(bytes.NewBufferString(tc.tab), "tab", tc.bpm)
+			tab, err := music.New(bytes.NewBufferString(tc.tab), "tab", tc.bpm)
 			if !assert.NoError(t, err) {
 				return
 			}
 
 			met := &metronome{
 				loops: tc.loops,
-				in:    *in,
+				music: *tab,
 				start: notes[0],
 				bpm:   time.Duration(tc.bpm),
 			}
+
 			a := analysis.New(met, &input{notes: notes})
-			var scores []int
+			var scores []time.Duration
 			var wg sync.WaitGroup
 			wg.Add(1)
 
 			go func() {
-				a.Start(60, in, func(score int) {
+				a.Start(60, tab, func(score time.Duration) {
 					scores = append(scores, score)
 					if len(scores) == tc.loops {
 						wg.Done()
@@ -76,13 +107,14 @@ func TestAnalysis(t *testing.T) {
 
 type metronome struct {
 	loops int
-	in    music.Input
+	music music.Input
 	start time.Time
 	bpm   time.Duration
+	lock  *sync.Mutex
 }
 
 func (m *metronome) Start(ts time.Duration, f func(time.Time)) {
-	for i := 0; i <= (m.loops * m.in.Time.Beats * m.in.Measures); i++ {
+	for i := 0; i <= (m.loops * m.music.Time.Beats * m.music.Measures); i++ {
 		f(m.start.Add(time.Duration(i) * time.Minute / m.bpm))
 	}
 }
@@ -91,6 +123,7 @@ func (m *metronome) Stop() {}
 
 type input struct {
 	notes []time.Time
+	lock  *sync.Mutex
 }
 
 func (i *input) Start(f func(time.Time)) error {

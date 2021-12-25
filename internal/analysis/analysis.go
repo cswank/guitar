@@ -1,6 +1,7 @@
 package analysis
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -40,7 +41,7 @@ func New(met ticker, in listener) *Analysis {
 	}
 }
 
-func (a *Analysis) Start(bpm time.Duration, in *music.Input, f func(int)) {
+func (a *Analysis) Start(bpm time.Duration, in *music.Input, f func(time.Duration)) {
 	notes := []time.Time{}
 
 	newNote := make(chan time.Time)
@@ -62,7 +63,8 @@ func (a *Analysis) Start(bpm time.Duration, in *music.Input, f func(int)) {
 
 	end := in.Time.Beats * in.Measures
 	var i int
-	var start time.Time
+	var start, prev time.Time
+
 	go func() {
 		for {
 			select {
@@ -70,11 +72,12 @@ func (a *Analysis) Start(bpm time.Duration, in *music.Input, f func(int)) {
 				if i == 0 {
 					start = tick
 				}
-
-				i++
-				if i > 1 && i%end == 1 {
+				if i > 0 && i%end == 0 {
 					analyze <- start
+					start = prev
 				}
+				i++
+				prev = tick
 			case <-a.quit2:
 				a.wg.Done()
 				return
@@ -87,12 +90,21 @@ func (a *Analysis) Start(bpm time.Duration, in *music.Input, f func(int)) {
 		for {
 			select {
 			case start := <-analyze:
+				end := start.Add(in.TimePerLoop)
 				var score time.Duration
-				for _, note := range notes[n:] {
-					score += in.Score(start, note, 0)
+				chunk := notes[n:]
+				for _, note := range chunk {
+					if end.Sub(note) < 0 {
+						break
+					}
+					n++
+					s := in.Score(start, note, 0)
+					fmt.Println("score", s, len(chunk))
+					score += s
 				}
-				n += len(notes[n:])
-				f(100 - int(score*time.Millisecond))
+
+				fmt.Println("final score", score, n)
+				f(score)
 			case <-a.quit3:
 				a.wg.Done()
 				return
