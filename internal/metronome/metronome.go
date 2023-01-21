@@ -25,12 +25,12 @@ type Metronome struct {
 
 func New() (*Metronome, error) {
 	var err error
-	low, err := sounds.ReadFile("low")
+	low, err := sounds.ReadFile("sounds/low")
 	if err != nil {
 		return nil, err
 	}
 
-	high, err := sounds.ReadFile("high")
+	high, err := sounds.ReadFile("sounds/high")
 	if err != nil {
 		return nil, err
 	}

@@ -110,7 +110,7 @@ minima detection the noise in the signal is ignored [6]. The value for
 δ is determined by making a pre- liminary sweep with δ = 0.01. For the
 true peak detection pass, δ is defined as the average of the squared
 magnitudes of the peaks from the first pass divided by an empirically
-de- termined factor = 3.2.
+determined factor = 3.2.
 */
 
 func peak(in []float32) (int, int, float32) {

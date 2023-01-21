@@ -41,7 +41,7 @@ func main() {
 	in := input.New()
 	a := analysis.New(met, in)
 
-	a.Start(time.Duration(*bpm), m, func(i int) {})
+	a.Start(time.Duration(*bpm), m, func(d time.Duration) {})
 
 	time.Sleep(10 * time.Second)
 

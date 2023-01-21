@@ -18,6 +18,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/faiface/beep v1.0.2 // indirect
 	github.com/hajimehoshi/go-mp3 v0.1.1 // indirect
+	github.com/kr/pretty v0.1.0 // indirect
 	github.com/mattn/go-runewidth v0.0.5 // indirect
 	github.com/nsf/termbox-go v0.0.0-20190817171036-93860e161317 // indirect
 	github.com/pkg/errors v0.8.1 // indirect
@@ -26,5 +27,6 @@ require (
 	golang.org/x/image v0.0.0-20190227222117-0694c2d4d067 // indirect
 	golang.org/x/mobile v0.0.0-20190415191353-3e0bab5405d6 // indirect
 	golang.org/x/sys v0.0.0-20190429190828-d89cdac9e872 // indirect
-	gopkg.in/yaml.v2 v2.2.2 // indirect
+	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
+	gopkg.in/yaml.v2 v2.2.4 // indirect
 )
